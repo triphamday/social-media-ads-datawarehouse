@@ -208,3 +208,11 @@ __marimo__/
 
 # Data 
 data/fake_data
+
+# unneccessarily folders or files
+note.txt
+config
+dashboard\denormalization_data.sql
+is217
+LICENSE
+requirements.txt
