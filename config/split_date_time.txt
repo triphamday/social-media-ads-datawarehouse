@@ -1,3 +1,0 @@
-input=data\raw\ad_events.csv
-output=data\processed\ad_events_processed.csv
-cols=timestamp
