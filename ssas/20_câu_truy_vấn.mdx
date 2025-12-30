@@ -1,0 +1,399 @@
+﻿-------------------------------------------------------
+-- CÂU 1
+-- Số tương tác (event_id) ở từng khung giờ, với event_type là "Purchase" và "Impression", sắp xếp giảm dần theo cột "Purchase"
+SELECT
+    { [DIM Event Type].[Event Type Name].[Event Type Name].&[Purchase],
+      [DIM Event Type].[Event Type Name].[Event Type Name].&[Impression] } ON COLUMNS,
+    ORDER (
+        [DIM Time].[Time_Hierarchy].[Hour].MEMBERS,
+        ( [DIM Event Type].[Event Type Name].[Event Type Name].&[Purchase] ),
+        DESC
+    ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE ([Measures].[FACT Advertisement Event Count]);
+
+
+-------------------------------------------------------
+-- CÂU 2
+-- Thống kê lượng tương tác theo quý, theo các tháng của quý đó
+WITH 
+    MEMBER [Measures].[UNIQUE EVENT COUNT] AS [Measures].[FACT Advertisement Event Count]
+SELECT
+    [Measures].[UNIQUE EVENT COUNT] ON COLUMNS,
+    NON EMPTY
+        DRILLDOWNMEMBER(
+                [DIM Date].[Date_Hierarchy].[Quarter].MEMBERS,
+                {
+                        [DIM Date].[Date_Hierarchy].[Quarter].MEMBERS,
+                        [DIM Date].[Date_Hierarchy].[Month].MEMBERS
+                }
+        ) ON ROWS
+FROM [Social Media Ads DW];
+
+
+-------------------------------------------------------
+-- CÂU 3
+-- Top 10 chiến dịch có tương tác nhiều nhất năm 2025
+SELECT 
+    [Measures].[FACT Advertisement Event Count] ON COLUMNS,
+    TOPCOUNT(
+        [DIM Campaign].[Name].[Name].MEMBERS,
+        10,
+        [Measures].[FACT Advertisement Event Count]
+    ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE [DIM Date].[Year].&[2025];
+
+
+-------------------------------------------------------
+-- CÂU 4
+-- Thống kê 10 chiến dịch có tương tác nhiều nhất và ngân sách của nó.
+SELECT 
+    [Measures].[FACT Advertisement Event Count] ON COLUMNS,
+    {TOPCOUNT(
+        ([DIM Campaign].[Name].[Name].MEMBERS,
+        [DIM Campaign].[Total Budget].[Total Budget].MEMBERS),
+        10,
+        [Measures].[FACT Advertisement Event Count]
+    )} ON ROWS
+FROM [Social Media Ads DW];
+
+
+-------------------------------------------------------
+-- CÂU 5
+-- Thống kê thứ trong tuần tập trung nhiều user tương tác nhất của từng quảng cáo.
+SELECT
+    {[Measures].[User Id Distinct Count]} ON COLUMNS,
+    GENERATE(
+        [DIM Advertisement].[Ad Id].[Ad Id].Members,       
+        CROSSJOIN(
+            {[DIM Advertisement].[Ad Id].CurrentMember}, 
+            TOPCOUNT(
+                [DIM Date].[Day Of Week].Children, 
+                1, 
+                [Measures].[User Id Distinct Count]
+            )
+        )
+    ) ON ROWS
+FROM [Social Media Ads DW];
+
+
+-------------------------------------------------------
+-- CÂU 6
+-- Đối với tương tác thuộc chiến dịch có tên là "Summer", thống kê số user ở từng độ tuổi.
+SELECT
+    [Measures].[User Id Distinct Count] ON COLUMNS,
+    [DIM User].[User Age].[User Age] ON ROWS
+FROM [Social Media Ads DW]    
+WHERE (
+    FILTER(
+            [DIM Campaign].[Name].[Name].MEMBERS,
+            InStr([DIM Campaign].[Name].CURRENTMEMBER.Name, "Summer") > 0
+        )
+);
+
+-------------------------------------------------------
+-- CÂU 7
+-- Thống kê số tương tác của từng loại quảng cáo (IMAGE/VIDEO/CAROUSEL/STORIES) theo tháng và theo ngày trong tháng đó.
+SELECT
+    [DIM Ad Type].[Ad Type].[Ad Type].MEMBERS ON COLUMNS,
+    NON EMPTY
+        DRILLDOWNMEMBER(
+                [DIM Date].[Date_Hierarchy].[Month].MEMBERS,
+                {
+                        [DIM Date].[Date_Hierarchy].[Month].MEMBERS,
+                        [DIM Date].[Date_Hierarchy].[Day].MEMBERS
+                }
+        ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE {[Measures].[FACT Advertisement Event Count]};
+
+
+-------------------------------------------------------
+-- CÂU 8
+-- Thống kê số quảng cáo mà từng chiến dịch thực hiện.
+WITH 
+MEMBER [Measures].[Ad Count Display] AS 
+    IIF(
+        IsEmpty([Measures].[Ad Id Distinct Count]),
+        0,
+        [Measures].[Ad Id Distinct Count]
+    )
+SELECT 
+    {[Measures].[Ad Count Display]} ON COLUMNS,
+    NON EMPTY 
+        FILTER(
+            [DIM Campaign].[Name].[Name].MEMBERS,
+            [DIM Campaign].[Name].CURRENTMEMBER.NAME <> "Unknown"
+        ) ON ROWS
+FROM [Social Media Ads DW];
+
+
+-------------------------------------------------------
+-- CÂU 9
+-- Thống kê số lượng tương tác từng loại (IMPRESSION, LIKE, COMMENT, SHARE, PURCHASE) theo từng chiến dịch.
+SELECT 
+    [DIM Event Type].[Event Type Name].[Event Type Name].MEMBERS ON COLUMNS,
+    [DIM Campaign].[Name].[Name].MEMBERS ON ROWS
+FROM [Social Media Ads DW]
+WHERE ([Measures].[FACT Advertisement Event Count]);
+
+
+-------------------------------------------------------
+-- CÂU 10
+-- Thống kê số lượng user tương tác theo từng chiến dịch, chia theo giới tính (MALE/FEMALE)
+SELECT 
+    [DIM User].[User Gender].[User Gender].MEMBERS ON COLUMNS,
+    [DIM Campaign].[Name].[Name].MEMBERS ON ROWS
+FROM [Social Media Ads DW]
+WHERE ([Measures].[User Id Distinct Count]);
+
+
+-------------------------------------------------------
+-- CÂU 11
+-- Top 5 chiến dịch có số lượt tương tác thấp nhất theo từng nền tảng quảng cáo (FACEBOOK).
+SELECT
+  { [DIM Ad Platform].[Ad Platform].[Ad Platform].&[Facebook] } ON COLUMNS,
+        BottomCount(
+                NonEmpty(
+                [DIM Campaign].[Name].[Name].MEMBERS,
+                ([Measures].[FACT Advertisement Event Count], 
+        [DIM Ad Platform].[Ad Platform].[Ad Platform].&[Facebook])
+                ),
+                5,
+                ([Measures].[FACT Advertisement Event Count], 
+        [DIM Ad Platform].[Ad Platform].[Ad Platform].&[Facebook])
+        ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE ([Measures].[FACT Advertisement Event Count]);
+
+
+-------------------------------------------------------
+-- CÂU 12
+-- Thống kê số lượng user "purchase" cho chiến dịch bắt đầu từ tháng 4 đến tháng 6, sắp xếp theo tên chiến dịch.
+WITH MEMBER [Measures].[User Count Display] AS
+    IIF(
+        IsEmpty([Measures].[FACT Advertisement User Count]),
+        0,
+        [Measures].[User Id Distinct Count]
+    )
+SELECT
+    [Measures].[User Count Display] ON COLUMNS,
+    ORDER(
+        EXISTS(
+            FILTER(
+                [DIM Campaign].[Name].[Name].MEMBERS,
+                [DIM Campaign].[Name].CURRENTMEMBER.NAME <> "Unknown"
+            ),
+            {
+                [DIM Campaign].[Start Date].[Start Date].&[2025-04-01T00:00:00]
+                :
+                [DIM Campaign].[Start Date].[Start Date].&[2025-06-30T23:59:59]
+            }
+        ),
+        [DIM Campaign].[Name].CURRENTMEMBER.NAME,
+        BASC
+    ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE [DIM Event Type].[Event Type Name].[Event Type Name].&[Purchase];
+
+
+-------------------------------------------------------
+-- CÂU 13
+-- Trong Quý 2 năm 2025, cho biết 02 quảng cáo có lượng tương tác nhiều nhất.
+SELECT
+    [Measures].[FACT Advertisement Event Count] ON COLUMNS,
+    TOPCOUNT(
+        [DIM Advertisement].[Ad Id].[Ad Id].MEMBERS,
+        2,
+        [Measures].[FACT Advertisement Event Count]
+    ) ON ROWS
+FROM [Social Media Ads Dw]
+WHERE ([DIM Date].[Date_Hierarchy].[Quarter].&[2]);
+
+
+-------------------------------------------------------
+-- CÂU 14
+-- Liệt kê top 03 user tương tác nhiều nhất trong CẢ hai tháng 6/2025 và 7/2025
+SELECT 
+    [Measures].[FACT Advertisement Event Count] ON COLUMNS, 
+    TOPCOUNT(
+        NONEMPTY(
+            [DIM User].[User Id].[User Id].MEMBERS,
+            [Measures].[FACT Advertisement Event Count]
+        ),
+        3,
+        [Measures].[FACT Advertisement Event Count]
+    ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE {
+    [DIM Date].[Date_Hierarchy].[Month].&[6]&[2025],
+    [DIM Date].[Date_Hierarchy].[Month].&[7]&[2025]
+};
+
+
+-------------------------------------------------------
+-- CÂU 15
+-- Liệt kê chiến dịch có tổng user > 5000 trong quý 2
+SELECT
+    [Measures].[User Id Distinct Count] ON COLUMNS,
+    FILTER(
+        [DIM Campaign].[Name].[Name].MEMBERS,
+        [Measures].[User Id Distinct Count]> 5000
+    ) ON ROWS
+FROM [Social Media Ads DW]
+WHERE [DIM Date].[Date_Hierarchy].[Quarter].&[2];
+
+
+-------------------------------------------------------
+-- CÂU 16
+-- Với mỗi nền tảng (Facebook, Instagram) chọn ra đúng 1 loại quảng cáo có lượng tương tác cao nhất cho từng tháng.
+SELECT
+    {[Measures].[FACT Advertisement Event Count]} ON COLUMNS,
+    NON EMPTY GENERATE(
+        [DIM Date].[Month].[Month].Members,       
+        GENERATE(
+            [DIM Ad Platform].[Ad Platform].[Ad Platform].Members,
+            CROSSJOIN(
+                (
+                    [DIM Ad Platform].[Ad Platform].CurrentMember,
+                    [DIM Date].[Month].CurrentMember
+                ),
+                TOPCOUNT(
+                    [DIM Ad Type].[Ad Type].Children, 
+                    1,
+                    [Measures].[FACT Advertisement Event Count]
+                )
+            )
+        )
+    ) ON ROWS
+FROM [Social Media Ads DW]
+
+
+-------------------------------------------------------
+-- CÂU 17
+-- Với các chiến dịch có 'Winter' trong tên, liệt kê số lượng tương tác của chiến dịch này theo từng 
+-- Thứ trong tuần (Day of Week) để xem ngày nào hiệu quả nhất ?
+SELECT
+    {[Measures].[FACT Advertisement Event Count]} ON COLUMNS,
+    NON EMPTY ORDER(
+        CROSSJOIN(
+            FILTER(
+                [DIM Campaign].[Name].Children,
+                InStr([DIM Campaign].[Name].CurrentMember.Name, "Winter") > 0
+            ),
+            [DIM Date].[Day Of Week].Children
+        ),
+        [Measures].[FACT Advertisement Event Count],
+        DESC
+    ) ON ROWS
+FROM [Social Media Ads DW]
+
+
+-------------------------------------------------------
+-- CÂU 18
+-- Với mỗi tháng, hãy tính toán xem có bao nhiêu tương tác xảy ra chỉ trong 'Khung giờ vàng' (từ 18h đến 22h) 
+-- và tỷ lệ phần trăm đóng góp của khung giờ này so với tổng thể là bao nhiêu
+WITH 
+    MEMBER [Measures].[Golden Hours Count] AS
+        SUM(
+            {
+                [DIM Time].[Time_Hierarchy].[Hour].&[18], 
+                [DIM Time].[Time_Hierarchy].[Hour].&[19],
+                [DIM Time].[Time_Hierarchy].[Hour].&[20],
+                [DIM Time].[Time_Hierarchy].[Hour].&[21],
+                [DIM Time].[Time_Hierarchy].[Hour].&[22]
+            },
+            [Measures].[FACT Advertisement Event Count]
+        )
+
+    MEMBER [Measures].[Golden Hour Rate] AS
+        IIF(
+            [Measures].[FACT Advertisement Event Count] = 0, 
+            NULL,
+            [Measures].[Golden Hours Count] / [Measures].[FACT Advertisement Event Count]
+        ), 
+        FORMAT_STRING = "Percent"
+SELECT
+    {
+        [Measures].[FACT Advertisement Event Count], 
+        [Measures].[Golden Hours Count],             
+        [Measures].[Golden Hour Rate]               
+    } ON COLUMNS,
+    NON EMPTY [DIM Date].[Date_Hierarchy].[Month].Members ON ROWS
+FROM [Social Media Ads DW]
+
+
+-------------------------------------------------------
+-- CÂU 19
+-- Với mỗi Tháng trong năm 2025, tìm ra 3 ngày cụ thể (Date) có lượng tương tác cao nhất. 
+-- Đồng thời hiển thị xem ngày đó đóng góp bao nhiêu % vào tổng lượng tương tác của tháng đó.
+WITH 
+    MEMBER [Measures].[Parent Month Total] AS
+        (
+            ANCESTOR(
+                [DIM Date].[Date_Hierarchy].CurrentMember, 
+                [DIM Date].[Date_Hierarchy].[Month]
+            ), 
+            [Measures].[FACT Advertisement Event Count]
+        )
+    MEMBER [Measures].[Day Contribution %] AS
+        IIF(
+            [Measures].[Parent Month Total] = 0, 
+            NULL,
+            [Measures].[FACT Advertisement Event Count] / [Measures].[Parent Month Total]
+        ), 
+        FORMAT_STRING = "Percent"
+SELECT
+    {
+        [Measures].[FACT Advertisement Event Count],
+        [Measures].[Day Contribution %]
+    } ON COLUMNS,
+    NON EMPTY HIERARCHIZE(
+        GENERATE(
+            [DIM Date].[Date_Hierarchy].[Month].Members,
+            {
+                [DIM Date].[Date_Hierarchy].CurrentMember,
+                TOPCOUNT(
+                    DESCENDANTS(
+                        [DIM Date].[Date_Hierarchy].CurrentMember,
+                        [DIM Date].[Date_Hierarchy].[Day] 
+                    ),
+                    3,
+                    [Measures].[FACT Advertisement Event Count]
+                )
+            }
+        )
+    ) ON ROWS
+FROM [Social Media Ads DW]
+
+
+-------------------------------------------------------
+-- CÂU 20
+-- Qua từng tháng, các loại quảng cáo thu hút được tương tác như thế nào
+-- % Tăng trưởng so với tháng trước (MoM Growth %) của riêng loại quảng cáo đó
+WITH 
+    MEMBER [Measures].[Prev Month Count] AS
+        (
+            [DIM Date].[Date_Hierarchy].CurrentMember.PrevMember,
+            [Measures].[FACT Advertisement Event Count]
+        )
+
+    MEMBER [Measures].[MoM Growth %] AS
+        IIF(
+            ISEMPTY([Measures].[FACT Advertisement Event Count]) 
+            OR [Measures].[Prev Month Count] = 0 
+            OR ISEMPTY([Measures].[Prev Month Count]),
+            NULL,
+            ([Measures].[FACT Advertisement Event Count] - [Measures].[Prev Month Count]) 
+            / [Measures].[Prev Month Count]
+        ),
+        FORMAT_STRING = "Percent"
+
+SELECT
+    NON EMPTY {
+        [Measures].[FACT Advertisement Event Count],
+        [Measures].[MoM Growth %]
+    } * [DIM Ad Type].[Ad Type].[Ad Type].Members ON COLUMNS,
+    NON EMPTY [DIM Date].[Date_Hierarchy].[Month].Members ON ROWS
+FROM [Social Media Ads DW]

@@ -1,0 +1,3 @@
+input=data\raw\users.csv
+output=data\processed\users_processed.csv
+cols=user_id
